@@ -3546,4 +3546,371 @@ function ColliderManager() {
     ColliderManager.getCollidersNear(collider, function(tile) {
       if (!tile.isTile) return false;
       if (tile.isCounter && tile.intersects(collider)) {
-        counter = tile
+        counter = tile;
+        return 'break';
+      }
+      return false;
+    })
+    collider.moveTo(x1, y1);
+    if (counter) {
+      if ([4, 6].contains(direction)) {
+        var dist = Math.abs(counter.center.x - collider.center.x);
+        dist += collider.width;
+      } else if ([8, 2].contains(direction)) {
+        var dist = Math.abs(counter.center.y - collider.center.y);
+        dist += collider.height;
+      }
+      var x3 = $gameMap.roundPXWithDirection(x1, direction, dist);
+      var y3 = $gameMap.roundPYWithDirection(y1, direction, dist);
+      return this.startMapEvent(x3, y3, triggers, true);
+    }
+    return false;
+  };
+
+  Game_Player.prototype.airshipHere = function() {
+    // TODO
+    return false;
+  };
+
+  Game_Player.prototype.shipBoatThere = function(x2, y2) {
+    // TODO
+    return false;
+  };
+
+  // TODO create follower support addon
+  Game_Player.prototype.moveStraight = function(d, dist) {
+    Game_Character.prototype.moveStraight.call(this, d, dist);
+  };
+
+  Game_Player.prototype.moveDiagonally = function(horz, vert) {
+    Game_Character.prototype.moveDiagonally.call(this, horz, vert);
+  };
+})();
+
+//-----------------------------------------------------------------------------
+// Game_Event
+
+(function() {
+  var Alias_Game_Event_clearPageSettings = Game_Event.prototype.clearPageSettings;
+  Game_Event.prototype.clearPageSettings = function() {
+    Alias_Game_Event_clearPageSettings.call(this);
+    this._ignoreCharacters = [];
+  };
+
+  var Alias_Game_Event_setupPageSettings = Game_Event.prototype.setupPageSettings;
+  Game_Event.prototype.setupPageSettings = function() {
+    Alias_Game_Event_setupPageSettings.call(this);
+    this.reloadColliders();
+    this.initialPosition();
+    this._typeRandomDir = null;
+    this._typeTowardPlayer = null;
+    var notes = this.notes(true);
+    var ignore = /<ignoreCharas:(.*?)>/i.exec(notes);
+    this._ignoreCharacters = [];
+    if (ignore) {
+      this._ignoreCharacters = ignore[1].split(',').map(function(s) {
+        return QPlus.charaIdToId(s);
+      })
+    }
+  };
+
+  Game_Event.prototype.initialPosition = function() {
+    var ox = /<ox[=|:](-?[0-9]+)>/i.exec(this.comments(true)) || 0;
+    var oy = /<oy[=|:](-?[0-9]+)>/i.exec(this.comments(true)) || 0;
+    if (ox) ox = Number(ox[1]) || 0;
+    if (oy) oy = Number(oy[1]) || 0;
+    var nextOffset = new Point(ox, oy);
+    if (this._initialOffset) {
+      ox -= this._initialOffset.x;
+      oy -= this._initialOffset.y;
+    }
+    this._initialOffset = nextOffset;
+    this.setPixelPosition(this.px + ox, this.py + oy);
+  };
+
+  Game_Event.prototype.defaultColliderConfig = function() {
+    return QMovement.eventCollider;
+  };
+
+  Game_Event.prototype.ignoreCharacters = function(type) {
+    var ignores = Game_CharacterBase.prototype.ignoreCharacters.call(this, type);
+    return ignores.concat(this._ignoreCharacters);
+  };
+
+  Game_Event.prototype.updateStop = function() {
+    if (this._locked) {
+      this._freqCount = this.freqThreshold();
+      this.resetStopCount();
+    }
+    Game_Character.prototype.updateStop.call(this);
+    if (!this.isMoveRouteForcing()) {
+      this.updateSelfMovement();
+    }
+  };
+
+  Game_Event.prototype.updateSelfMovement = function() {
+    if (!this._locked && this.isNearTheScreen()) {
+      if (this._freqCount < this.freqThreshold()) {
+        switch (this._moveType) {
+          case 1:
+            this.moveTypeRandom();
+            break;
+          case 2:
+            this.moveTypeTowardPlayer();
+            break;
+          case 3:
+            this.moveTypeCustom();
+            break;
+        }
+      } else if (this.checkStop(this.stopCountThreshold())) {
+        this._freqCount = 0;
+      }
+    }
+  };
+
+  // TODO stop random dir from reseting every frame if event can't move
+  Game_Event.prototype.moveTypeRandom = function() {
+    if (this._freqCount === 0 || this._typeRandomDir === null) {
+      this._typeRandomDir = 2 * (Math.randomInt(4) + 1);
+    }
+    if (!this.canPixelPass(this._px, this._py, this._typeRandomDir)) {
+      this._typeRandomDir = 2 * (Math.randomInt(4) + 1);
+    }
+    this.moveStraight(this._typeRandomDir);
+  };
+
+  Game_Event.prototype.moveTypeTowardPlayer = function() {
+    if (this.isNearThePlayer()) {
+      if (this._freqCount === 0 || this._typeTowardPlayer === null) {
+        this._typeTowardPlayer = Math.randomInt(6);
+      }
+      switch (this._typeTowardPlayer) {
+        case 0: case 1: case 2: case 3: {
+          this.moveTowardPlayer();
+          break;
+        }
+        case 4: {
+          this.moveTypeRandom();
+          break;
+        }
+        case 5: {
+          this.moveForward();
+          break;
+        }
+      }
+    } else {
+      this.moveTypeRandom();
+    }
+  };
+
+  Game_Event.prototype.checkEventTriggerTouch = function(x, y) {
+    if (!$gameMap.isEventRunning()) {
+      if (this._trigger === 2 && !this.isJumping() && this.isNormalPriority()) {
+        var collider = this.collider('collision');
+        var prevX = collider.x;
+        var prevY = collider.y;
+        collider.moveTo(x, y);
+        var collided = false;
+        ColliderManager.getCharactersNear(collider, (function(chara) {
+          if (chara.constructor !== Game_Player) return false;
+          collided = chara.collider('collision').intersects(collider);
+          return 'break';
+        }).bind(this));
+        collider.moveTo(prevX, prevY);
+        if (collided) {
+          this._stopCount = 0;
+          this._freqCount = this.freqThreshold();
+          this.start();
+        }
+      }
+    }
+  };
+})();
+
+//-----------------------------------------------------------------------------
+// Scene_Map
+
+(function() {
+  Input.keyMapper[121] = 'f10';
+
+  var Alias_Scene_Map_updateMain = Scene_Map.prototype.updateMain;
+  Scene_Map.prototype.updateMain = function() {
+    Alias_Scene_Map_updateMain.call(this);
+    var key = Imported.QInput ? '#f10' : 'f10';
+    if ($gameTemp.isPlaytest() && Input.isTriggered(key)) {
+      ColliderManager.toggle();
+    }
+    ColliderManager.update();
+  };
+
+  Scene_Map.prototype.processMapTouch = function() {
+    if (TouchInput.isTriggered() || this._touchCount > 0) {
+      if (TouchInput.isPressed()) {
+        if (this._touchCount === 0 || this._touchCount >= 20) {
+          var x = $gameMap.canvasToMapPX(TouchInput.x);
+          var y = $gameMap.canvasToMapPY(TouchInput.y);
+          if (!$gameMap.offGrid()) {
+            var ox = x % QMovement.tileSize;
+            var oy = y % QMovement.tileSize;
+            x += QMovement.tileSize / 2 - ox;
+            y += QMovement.tileSize / 2 - oy;
+          }
+          $gameTemp.setPixelDestination(x, y);
+        }
+        this._touchCount++;
+      } else {
+        this._touchCount = 0;
+      }
+    }
+  };
+
+  Scene_Map.prototype.updateCallMenu = function() {
+    if (this.isMenuEnabled()) {
+      if (this.isMenuCalled()) {
+        this.menuCalling = true;
+      }
+      if (this.menuCalling && !$gamePlayer.startedMoving()) {
+        this.callMenu();
+      }
+    } else {
+      this.menuCalling = false;
+    }
+  };
+})();
+
+//-----------------------------------------------------------------------------
+// Sprite_Collider
+
+function Sprite_Collider() {
+  this.initialize.apply(this, arguments);
+}
+
+(function() {
+  Sprite_Collider.prototype = Object.create(Sprite.prototype);
+  Sprite_Collider.prototype.constructor = Sprite_Collider;
+
+  Sprite_Collider.prototype.initialize = function(collider, duration) {
+    Sprite.prototype.initialize.call(this);
+    this.z = 7;
+    this._duration = duration || 0;
+    this._cache = {};
+    this.setupCollider(collider);
+    this.checkChanges();
+  };
+
+  Sprite_Collider.prototype.setCache = function() {
+    this._cache = {
+      color: this._collider.color,
+      width: this._collider.width,
+      height: this._collider.height,
+      radian: this._collider._radian
+    }
+  };
+
+  Sprite_Collider.prototype.needsRedraw = function() {
+    return this._cache.width !== this._collider.width ||
+      this._cache.height !== this._collider.height ||
+      this._cache.color !== this._collider.color ||
+      this._cache.radian !== this._collider._radian
+  };
+
+  Sprite_Collider.prototype.setupCollider = function(collider) {
+    this._collider = collider;
+    var isNew = false;
+    if (!this._colliderSprite) {
+      this._colliderSprite = new PIXI.Graphics();
+      isNew = true;
+    }
+    this.drawCollider();
+    if (isNew) {
+      this.addChild(this._colliderSprite);
+    }
+  };
+
+  Sprite_Collider.prototype.drawCollider = function() {
+    var collider = this._collider;
+    this._colliderSprite.clear();
+    var color = (collider.color || '#ff0000').replace('#', '');
+    color = parseInt(color, 16);
+    this._colliderSprite.beginFill(color);
+    if (collider.isCircle()) {
+      var radiusX = collider.radiusX;
+      var radiusY = collider.radiusY;
+      this._colliderSprite.drawEllipse(0, 0, radiusX, radiusY);
+      this._colliderSprite.rotation = collider._radian;
+    } else {
+      this._colliderSprite.drawPolygon(collider._baseVertices);
+    }
+    this._colliderSprite.endFill();
+  };
+
+  Sprite_Collider.prototype.update = function() {
+    Sprite.prototype.update.call(this);
+    this.checkChanges();
+    if (this._duration >= 0 || this._collider.kill) {
+      this.updateDecay();
+    }
+  };
+
+  Sprite_Collider.prototype.checkChanges = function() {
+    this.visible = !this._collider._isHidden;
+    this.x = this._collider.x + this._collider.ox;
+    this.x -= $gameMap.displayX() * QMovement.tileSize;
+    this.y = this._collider.y + this._collider.oy;
+    this.y -= $gameMap.displayY() * QMovement.tileSize;
+    if (this.x < -this._collider.width || this.x > Graphics.width) {
+      if (this.y < -this._collider.height || this.y > Graphics.height) {
+        this.visible = false;
+      }
+    }
+    this._colliderSprite.z = this.z;
+    this._colliderSprite.visible = this.visible;
+    if (this.needsRedraw()) {
+      this.drawCollider();
+      this.setCache();
+    }
+  };
+
+  Sprite_Collider.prototype.updateDecay = function() {
+    this._duration--;
+    if (this._duration <= 0 || this._collider.kill) {
+      ColliderManager.removeSprite(this);
+      this._collider = null;
+    }
+  };
+})();
+
+//-----------------------------------------------------------------------------
+// Sprite_Destination
+//
+// The sprite for displaying the destination place of the touch input.
+
+(function() {
+  Sprite_Destination.prototype.updatePosition = function() {
+    var tileWidth = $gameMap.tileWidth();
+    var tileHeight = $gameMap.tileHeight();
+    var x = $gameTemp.destinationPX();
+    var y = $gameTemp.destinationPY();
+    this.x = $gameMap.adjustPX(x);
+    this.y = $gameMap.adjustPY(y);
+  };
+})();
+
+//-----------------------------------------------------------------------------
+// Spriteset_Map
+
+(function() {
+  var Alias_Spriteset_Map_createLowerLayer = Spriteset_Map.prototype.createLowerLayer;
+  Spriteset_Map.prototype.createLowerLayer = function() {
+    Alias_Spriteset_Map_createLowerLayer.call(this);
+    if ($gameTemp.isPlaytest()) {
+      this.createColliders();
+    }
+  };
+
+  Spriteset_Map.prototype.createColliders = function() {
+    this.addChild(ColliderManager.container);
+    // also get collision map here
+  };
+})();
+
