@@ -13,6 +13,5 @@ var $plugins =
 {"name":"SRD_CameraCore","status":true,"description":"Allows developers to preform various camera motions including focusing and zooming.","parameters":{"Default Zoom":"1","Zoom Pictures?":"true","Margin Formula":"(Graphics.width / scale) - Graphics.width","Fix Black Lines":"false"}},
 {"name":"SRD_SmoothCamera","status":true,"description":"Gives the camera of your game smoother motion during gameplay and specific camera motions.","parameters":{"Delay Power":"5","Cut Off Value":"0.02"}},
 {"name":"GALV_CharacterFrames","status":true,"description":"Enables map character sheets to have more frames per character.","parameters":{"Frame Speed Modifier":"f * 0.8"}},
-{"name":"GALV_CharacterAnimations","status":true,"description":"(v.1.8) Make the player and follower characters use different\r\ngraphics for idle, walk and run. View HELP for more info.","parameters":{"Use Jump Graphic":"true","Common Event ID":"0","Common Event Time":"0","Repeat Common Event":"0"}},
 {"name":"map_edge_transfer_(mv)","status":true,"description":"Allows auto transfer from edge of map","parameters":{}}
 ];
