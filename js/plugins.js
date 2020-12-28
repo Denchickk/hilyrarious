@@ -11,5 +11,6 @@ var $plugins =
 {"name":"SRD_SmoothCamera","status":true,"description":"Gives the camera of your game smoother motion during gameplay and specific camera motions.","parameters":{"Delay Power":"5","Cut Off Value":"0.02"}},
 {"name":"GALV_CharacterFrames","status":true,"description":"Enables map character sheets to have more frames per character.","parameters":{"Frame Speed Modifier":"f * 0.8"}},
 {"name":"map_edge_transfer_(mv)","status":true,"description":"Allows auto transfer from edge of map","parameters":{}},
-{"name":"ass!!!","status":true,"description":"1.0.2 Fixes MV's framerate dependent timestepping. Makes the gamespeed the same regardless of framerate.","parameters":{}}
+{"name":"ass!!!","status":true,"description":"1.0.2 Fixes MV's framerate dependent timestepping. Makes the gamespeed the same regardless of framerate.","parameters":{}},
+{"name":"Galv_PixelMove","status":true,"description":"(v.1.3) Gives the illusion of pixel movement for the player.","parameters":{"Diagonal Speed":"90","Diagonal Charset":"false","Tile Delay":"0"}}
 ];
